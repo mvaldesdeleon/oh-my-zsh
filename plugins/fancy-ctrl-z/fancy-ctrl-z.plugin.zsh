@@ -1,4 +1,6 @@
 fancy-ctrl-z () {
+  [[ $(jobs -l | wc -l) -gt 0 ]] || return;
+
   if [[ $#BUFFER -eq 0 ]]; then
     BUFFER="fg"
     zle accept-line
