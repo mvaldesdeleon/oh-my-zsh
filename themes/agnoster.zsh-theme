@@ -1,4 +1,3 @@
-# vim:ft=zsh ts=2 sw=2 sts=2
 #
 # agnoster's Theme - https://gist.github.com/3712874
 # A Powerline-inspired theme for ZSH
@@ -45,6 +44,7 @@ CURRENT_BG='NONE'
   # escape sequence with a single literal character.
   # Do not change this! Do not make it '\u2b80'; that is the old, wrong code point.
   SEGMENT_SEPARATOR=$'\ue0b0'
+  SEGMENT_SEPARATOR_ALT=$'\ue0b1'
 }
 
 # Begin a segment
@@ -54,10 +54,18 @@ prompt_segment() {
   local bg fg
   [[ -n $1 ]] && bg="%K{$1}" || bg="%k"
   [[ -n $2 ]] && fg="%F{$2}" || fg="%f"
-  if [[ $CURRENT_BG != 'NONE' && $1 != $CURRENT_BG ]]; then
-    echo -n " %{$bg%F{$CURRENT_BG}%}$SEGMENT_SEPARATOR%{$fg%} "
+  if [[ $CURRENT_BG != 'NONE' ]]; then
+    if [[ $1 != $CURRENT_BG ]]; then
+        echo -n " %{$bg%F{$CURRENT_BG}%}$SEGMENT_SEPARATOR%{$fg%} "
+    else
+        echo -n " %{$bg$fg%}$SEGMENT_SEPARATOR_ALT%{$fg%} "
+    fi
   else
-    echo -n "%{$bg%}%{$fg%} "
+    if [[ -n $3 ]]; then
+        echo -n "%{$bg%}%{$fg%} "
+    else
+        echo -n "%{$bg%}%{$fg%}"
+    fi
   fi
   CURRENT_BG=$1
   [[ -n $3 ]] && echo -n $3
@@ -65,7 +73,7 @@ prompt_segment() {
 
 # End the prompt, closing any open segments
 prompt_end() {
-  if [[ -n $CURRENT_BG ]]; then
+  if [[ -n $CURRENT_BG && $CURRENT_BG != 'NONE' ]]; then
     echo -n " %{%k%F{$CURRENT_BG}%}$SEGMENT_SEPARATOR"
   else
     echo -n "%{%k%}"
@@ -79,8 +87,14 @@ prompt_end() {
 
 # Context: user@hostname (who am I and where am I)
 prompt_context() {
-  if [[ "$USER" != "$DEFAULT_USER" || -n "$SSH_CLIENT" ]]; then
+  if [[ ("$USER" != "$DEFAULT_USER" && $UID -ne 0) || -n "$SSH_CLIENT" ]]; then
     prompt_segment black default "%(!.%{%F{yellow}%}.)$USER@%m"
+  fi
+}
+
+prompt_context_lite() {
+  if [[ ("$USER" != "$DEFAULT_USER" && $UID -ne 0) ]]; then
+    prompt_segment black green "$USER"
   fi
 }
 
@@ -90,7 +104,7 @@ prompt_git() {
   local PL_BRANCH_CHAR
   () {
     local LC_ALL="" LC_CTYPE="en_US.UTF-8"
-    PL_BRANCH_CHAR=$'\ue0a0'         # 
+    PL_BRANCH_CHAR=$'\uf418'         # 
   }
   local ref dirty mode repo_path
   repo_path=$(git rev-parse --git-dir 2>/dev/null)
@@ -180,24 +194,37 @@ prompt_virtualenv() {
 # - am I root
 # - are there background jobs?
 prompt_status() {
-  local symbols
-  symbols=()
-  [[ $RETVAL -ne 0 ]] && symbols+="%{%F{red}%}✘"
-  [[ $UID -eq 0 ]] && symbols+="%{%F{yellow}%}⚡"
-  [[ $(jobs -l | wc -l) -gt 0 ]] && symbols+="%{%F{cyan}%}⚙"
+  local BG FG SYMBOL
 
-  [[ -n "$symbols" ]] && prompt_segment black default "$symbols"
+  BG='black'
+  FG='default'
+  SYMBOL=''
+
+  [[ "$USER" != "$DEFAULT_USER" ]] && SYMBOL=$'\uf441' && FG='green'
+  [[ $UID -eq 0 ]] && SYMBOL=$'\uf490' && FG='yellow'
+
+  [[ $(jobs -l | wc -l) -gt 0 ]] && BG='yellow' && FG='black'
+  [[ $RETVAL -ne 0 ]] && BG='red' && FG='black'
+
+  prompt_segment "$BG" "$FG" "$SYMBOL"
+}
+
+prompt_newline() {
+  echo ""
+  CURRENT_BG='NONE'
 }
 
 ## Main prompt
 build_prompt() {
   RETVAL=$?
-  prompt_status
   prompt_virtualenv
-  prompt_context
+  prompt_context_lite
   prompt_dir
-  prompt_git
+  prompt_end
+  prompt_newline
+  prompt_status
   prompt_hg
+  prompt_git
   prompt_end
 }
 
